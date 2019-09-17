@@ -1,0 +1,6 @@
+{
+    "board": "adafruit:samd:adafruit_trinket_m0",
+    "configuration": "usbstack=arduino,debug=off",
+    "port": "/dev/cu.usbmodem14101",
+    "sketch": "fan-test.ino"
+}

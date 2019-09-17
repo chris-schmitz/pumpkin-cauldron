@@ -1,0 +1,6 @@
+{
+    "board": "adafruit:samd:adafruit_circuitplayground_m0",
+    "configuration": "usbstack=arduino,debug=off",
+    "port": "/dev/cu.usbmodem14201",
+    "sketch": "receiver.ino"
+}
