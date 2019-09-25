@@ -142,7 +142,7 @@ void loop()
     {
         setFanStatus(FAN_ON);
         musicPlayer.startPlayingFile("SOUNDS/EFFECTS/WITCH2.MP3");
-        fillStrip(CYAN);
+        setActiveLightPattern(LIGHT_PATTERN_WITCH_CACKLE);
     }
     // | Verified Good
     //  musicPlayer.startPlayingFile("SOUNDS/EFFECTS/WITCH1.MP3");
@@ -154,6 +154,11 @@ void loop()
 // ! we should really rename this function
 void runActiveLightPattern()
 {
+    if (musicPlayer.stopped())
+    {
+        setActiveLightPattern(LIGHT_PATTERN_BUBBLE);
+        setFanStatus(FAN_OFF);
+    }
     // | Note! we're intentionally using if else if statements here instead of a switch for speed purposes.
     // | If we use switch, each case has to be evaluated even if the first one is the only one we're looking for,
     // | but if we use an if/else if then we'll stop once we find our desired conditional.
@@ -163,12 +168,11 @@ void runActiveLightPattern()
     }
     else if (activePattern == LIGHT_PATTERN_MONSTER_ROAR)
     {
-        if (musicPlayer.stopped())
-        {
-            setActiveLightPattern(LIGHT_PATTERN_BUBBLE);
-            setFanStatus(FAN_OFF);
-        }
         lightsMonsterRoar();
+    }
+    else if (activePattern == LIGHT_PATTERN_WITCH_CACKLE)
+    {
+        lightsWitchesCackle();
     }
 }
 
