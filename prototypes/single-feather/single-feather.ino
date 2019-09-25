@@ -12,6 +12,8 @@
 #define VS1053_CS 6   // VS1053 chip select pin (output)
 #define CARDCS 5      // Card chip select pin
 
+#define VOLUME 5
+
 Adafruit_VS1053_FilePlayer musicPlayer =
     Adafruit_VS1053_FilePlayer(VS1053_RESET, VS1053_CS, VS1053_DCS, VS1053_DREQ, CARDCS);
 
@@ -24,23 +26,23 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);
 #define LED_PIN 12
 #define TOTAL_LEDS 30
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(TOTAL_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+// | NOTE: this include needs to happen after strip is defined so that we have access to
+// | the `strip` object.
+#include "src/colors.h"
 
 // ^ Fan settings
-#define FAN 17
-enum FanStatus
+#define FAN 16
+
+enum FAN_STATUSES
 {
-    FAN_ON,
-    FAN_OFF
+    FAN_OFF = 0,
+    FAN_ON = 1
 };
 
 // | Tags
 String SQUIRTLE = " 04 59 d0 4a e6 4c 81";
 String PIKACHU = " 04 60 d1 4a e6 4c 81";
 
-// | Colors
-uint32_t OFF = strip.Color(0, 0, 0);
-uint32_t CYAN = strip.Color(0, 255, 255);
-uint32_t YELLOW = strip.Color(255, 255, 0);
 boolean ledsOn = true;
 
 String content;
@@ -48,12 +50,13 @@ String content;
 void setup()
 {
     Serial.begin(115200);
-    while (!Serial)
-        ;
+
+    // while (!Serial)
+    //     ;
 
     // ^ Music maker setup
     if (!musicPlayer.begin())
-    { // initialise the music player
+    {
         Serial.println(F("Couldn't find VS1053, do you have the right pins defined?"));
         while (1)
             ;
@@ -64,16 +67,15 @@ void setup()
     {
         Serial.println(F("SD failed, or not present"));
         while (1)
-            ; // don't do anything more
+            ;
     }
 
-    // list files
-    printDirectory(SD.open("/"), 0);
+    // printDirectory(SD.open("/SOUNDS/"), 0);
 
-    // Set volume for left, right channels. lower numbers == louder volume!
-    musicPlayer.setVolume(0, 0);
+    // ^ Add settings for the music maker and test
+    musicPlayer.setVolume(VOLUME, VOLUME);
     musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT); // DREQ int
-    musicPlayer.playFullFile("PARADO/HI-THERE.MP3");
+    // musicPlayer.playFullFile("SOUNDS/PARADO/HI-THERE.MP3");
 
     // ^ LED Strip setup
     strip.begin();
@@ -87,13 +89,32 @@ void setup()
 
     // ^ Fan setup
     pinMode(FAN, OUTPUT);
-    digitalWrite(FAN, HIGH);
+    setFanStatus(FAN_ON);
     delay(2000);
-    digitalWrite(FAN, LOW);
+    setFanStatus(FAN_OFF);
 }
+
+enum LIGHT_PATTERNS
+{
+    LIGHT_PATTERN_BUBBLE = 0,
+    LIGHT_PATTERN_MONSTER_ROAR,
+    LIGHT_PATTERN_WITCH_CACKLE
+};
+
+uint8_t activePattern = LIGHT_PATTERN_BUBBLE;
 
 void loop()
 {
+    // ? Left in for testing out each color group
+    // fillStrip(BLUE_DARK);
+    // delay(1000);
+    // fillStrip(BLUE_MEDIUM);
+    // delay(1000);
+    // fillStrip(BLUE_LIGHT);
+    // delay(1000);
+    // return;
+
+    runActiveLightPattern();
 
     // Look for new cards
     if (!mfrc522.PICC_IsNewCardPresent())
@@ -107,45 +128,148 @@ void loop()
         return;
     }
 
-    // // Dump debug info about the card; PICC_HaltA() is automatically called
-    // mfrc522.PICC_DumpToSerial(&(mfrc522.uid));
-
     captureUID();
+
+    musicPlayer.stopPlaying();
 
     if (content == PIKACHU)
     {
-        Serial.println("Starting playback");
-        musicPlayer.startPlayingFile("EFFECTS/LION.WAV");
         setFanStatus(FAN_ON);
-        Serial.println("Finished playback");
-        fillStrip(YELLOW);
-        setFanStatus(FAN_OFF);
+        musicPlayer.startPlayingFile("SOUNDS/EFFECTS/TREX.MP3");
+        setActiveLightPattern(LIGHT_PATTERN_MONSTER_ROAR);
     }
     else if (content == SQUIRTLE)
     {
-        musicPlayer.startPlayingFile("EFFECTS/LAUGH.WAV");
         setFanStatus(FAN_ON);
+        musicPlayer.startPlayingFile("SOUNDS/EFFECTS/WITCH2.MP3");
         fillStrip(CYAN);
-        setFanStatus(FAN_OFF);
     }
-
-    delay(2000);
-    fillStrip(OFF);
-
-    delay(100);
+    // | Verified Good
+    //  musicPlayer.startPlayingFile("SOUNDS/EFFECTS/WITCH1.MP3");
+    // musicPlayer.startPlayingFile("SOUNDS/EFFECTS/BUBBLE.MP3");
 }
 
-void setFanStatus(FanStatus status)
+// TODO: RENAME
+// ! hmmm if we're going to deactivate the fan in here based on the music player status
+// ! we should really rename this function
+void runActiveLightPattern()
 {
-    if (status == FAN_ON)
+    // | Note! we're intentionally using if else if statements here instead of a switch for speed purposes.
+    // | If we use switch, each case has to be evaluated even if the first one is the only one we're looking for,
+    // | but if we use an if/else if then we'll stop once we find our desired conditional.
+    if (activePattern == LIGHT_PATTERN_BUBBLE)
     {
-        digitalWrite(FAN, HIGH);
+        lightsBubble();
     }
-    else
+    else if (activePattern == LIGHT_PATTERN_MONSTER_ROAR)
     {
-        digitalWrite(FAN, LOW);
+        if (musicPlayer.stopped())
+        {
+            setActiveLightPattern(LIGHT_PATTERN_BUBBLE);
+            setFanStatus(FAN_OFF);
+        }
+        lightsMonsterRoar();
     }
 }
+
+unsigned long previousMillis = 0;
+unsigned long lightChangeInterval = 100;
+
+const uint32_t lightsBubbleArray[5] = {PURPLE_DARK, PURPLE_LIGHT, PURPLE_MEDIUM, BLUE_DARK, GREEN_DARK};
+/**
+ * |Slow purple and blue pulse pattern
+ **/
+void lightsBubble()
+{
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - previousMillis > lightChangeInterval)
+    {
+        for (uint8_t i = 0; i < TOTAL_LEDS; i++)
+        {
+            uint32_t randomIndex = rand() % 5;
+            strip.setPixelColor(i, lightsBubbleArray[randomIndex]);
+        }
+        strip.show();
+
+        previousMillis = currentMillis;
+    }
+}
+
+uint8_t flashOffset = 0;
+/**
+ * | Flashing yellow and red
+ **/
+void lightsWitchesCackle()
+{
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - previousMillis > lightChangeInterval)
+    {
+        for (uint8_t i = 0; i < TOTAL_LEDS; i++)
+        {
+            if (flashOffset + i % 2 == 0)
+            {
+                strip.setPixelColor(i, RED_LIGHT);
+            }
+            else
+            {
+                strip.setPixelColor(i, YELLOW_LIGHT);
+            }
+        }
+        strip.show();
+
+        // TODO come back and do boolean casting here or up in the if to simplify this
+        if (flashOffset == 1)
+        {
+            flashOffset = 0;
+        }
+        else
+        {
+            flashOffset = 1;
+        }
+
+        previousMillis = currentMillis;
+    }
+}
+
+bool lightFlashToggle = true;
+unsigned long previousMillisMONSTER = 0;
+unsigned int lightChangeIntervalMONSTER = 10;
+
+/**
+ * | Flashing red off and on
+ * 
+ * * Note that we do not need to track duration here. This routine will stop running 
+ * * once the music player is done playing the audio file.
+ **/
+void lightsMonsterRoar()
+{
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - previousMillisMONSTER > lightChangeIntervalMONSTER)
+    {
+        for (uint8_t i = 0; i < TOTAL_LEDS; i++)
+        {
+            if (lightFlashToggle)
+            {
+                strip.setPixelColor(i, RED_LIGHT);
+            }
+            else
+            {
+                strip.setPixelColor(i, YELLOW_DARK);
+            }
+            strip.show();
+            lightFlashToggle = !lightFlashToggle;
+        }
+
+        lightFlashToggle = !lightFlashToggle;
+
+        previousMillisMONSTER = currentMillis;
+    }
+}
+void lightsEvilLaugh() {}
+void lightsDogBark() {}
 
 // ! switch this logic to state machine to remove the blocking nature
 void fillStrip(uint32_t color)
@@ -200,4 +324,16 @@ void printDirectory(File dir, int numTabs)
         }
         entry.close();
     }
+}
+
+void setActiveLightPattern(int pattern)
+{
+    activePattern = pattern;
+}
+
+void setFanStatus(uint8_t fanStatus)
+{
+    // Serial.print("Fan status: ");
+    // Serial.println(fanStatus);
+    digitalWrite(FAN, fanStatus);
 }
