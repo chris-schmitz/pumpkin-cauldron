@@ -42,17 +42,18 @@ enum FAN_STATUSES
 // | Tags
 String SQUIRTLE = " 04 59 d0 4a e6 4c 81";
 String PIKACHU = " 04 60 d1 4a e6 4c 81";
-
-boolean ledsOn = true;
+String CUPCAKE = " 04 c8 cd 4a e6 4c 80";
 
 String content;
+boolean ledsOn = true;
+boolean effectsActive = false;
 
 void setup()
 {
     Serial.begin(115200);
 
-    // while (!Serial)
-    //     ;
+    while (!Serial)
+        ;
 
     // ^ Music maker setup
     if (!musicPlayer.begin())
@@ -98,13 +99,15 @@ enum LIGHT_PATTERNS
 {
     LIGHT_PATTERN_BUBBLE = 0,
     LIGHT_PATTERN_MONSTER_ROAR,
-    LIGHT_PATTERN_WITCH_CACKLE
+    LIGHT_PATTERN_WITCH_CACKLE,
+    LIGHT_PATTERN_EVIL_LAUGH
 };
 
 uint8_t activePattern = LIGHT_PATTERN_BUBBLE;
 
 void loop()
 {
+
     // ? Left in for testing out each color group
     // fillStrip(BLUE_DARK);
     // delay(1000);
@@ -114,24 +117,37 @@ void loop()
     // delay(1000);
     // return;
 
+    // ^ Advance the state machines
     runActiveLightPattern();
 
-    // Look for new cards
+    // ^ Look for new RFID tags
     if (!mfrc522.PICC_IsNewCardPresent())
     {
         return;
     }
 
-    // Select one of the cards
+    // ^ Select one of the tags
     if (!mfrc522.PICC_ReadCardSerial())
     {
         return;
     }
+    Serial.println("Tag found!");
 
     captureUID();
 
+    // ^ If we're running effects we don't need to set anything
+    // ! Note that nothing that needs to be run each loop pass (e.g. state machine driven
+    // ! code) should be put after this conditional
+    if (effectsActive)
+    {
+        return;
+    }
+
+    // ^ Prep a new run of the effects
+    effectsActive = true;
     musicPlayer.stopPlaying();
 
+    // ^ Run the specific set of effects based on the RFID tag we captured
     if (content == PIKACHU)
     {
         setFanStatus(FAN_ON);
@@ -142,6 +158,12 @@ void loop()
     {
         setFanStatus(FAN_ON);
         musicPlayer.startPlayingFile("SOUNDS/EFFECTS/WITCH2.MP3");
+        setActiveLightPattern(LIGHT_PATTERN_WITCH_CACKLE);
+    }
+    else if (content == CUPCAKE)
+    {
+        setFanStatus(FAN_ON);
+        musicPlayer.startPlayingFile("SOUNDS/PARADO/PC-TY.MP3.MP3");
         setActiveLightPattern(LIGHT_PATTERN_WITCH_CACKLE);
     }
     // | Verified Good
@@ -158,6 +180,7 @@ void runActiveLightPattern()
     {
         setActiveLightPattern(LIGHT_PATTERN_BUBBLE);
         setFanStatus(FAN_OFF);
+        effectsActive = false;
     }
     // | Note! we're intentionally using if else if statements here instead of a switch for speed purposes.
     // | If we use switch, each case has to be evaluated even if the first one is the only one we're looking for,
@@ -173,6 +196,10 @@ void runActiveLightPattern()
     else if (activePattern == LIGHT_PATTERN_WITCH_CACKLE)
     {
         lightsWitchesCackle();
+    }
+    else if (activePattern == LIGHT_PATTERN_EVIL_LAUGH)
+    {
+        lightsEvilLaugh();
     }
 }
 
@@ -272,7 +299,32 @@ void lightsMonsterRoar()
         previousMillisMONSTER = currentMillis;
     }
 }
-void lightsEvilLaugh() {}
+
+unsigned long prevMillisLAUGH = 0;
+unsigned int intervalLAUGH = 10;
+uint8_t colorIndex = 0;
+const uint32_t laugh_array[9] = {GREEN_DARK, BLUE_DARK, RED_DARK, GREEN_MEDIUM, BLUE_MEDIUM, RED_MEDIUM, GREEN_LIGHT, BLUE_LIGHT, RED_LIGHT};
+
+void lightsEvilLaugh()
+{
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - prevMillisLAUGH > intervalLAUGH)
+    {
+        for (uint8_t i = 0; i < TOTAL_LEDS; i++)
+        {
+            strip.setPixelColor(i, laugh_array[colorIndex]);
+            strip.show();
+        }
+        prevMillisLAUGH = currentMillis;
+    }
+
+    colorIndex++;
+    if (colorIndex > 8)
+    {
+        colorIndex = 0;
+    }
+}
 void lightsDogBark() {}
 
 // ! switch this logic to state machine to remove the blocking nature
@@ -337,7 +389,5 @@ void setActiveLightPattern(int pattern)
 
 void setFanStatus(uint8_t fanStatus)
 {
-    // Serial.print("Fan status: ");
-    // Serial.println(fanStatus);
     digitalWrite(FAN, fanStatus);
 }
