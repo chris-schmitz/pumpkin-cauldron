@@ -1,5 +1,5 @@
 {
-    "board": "adafruit:samd:adafruit_trinket_m0",
+    "board": "adafruit:samd:adafruit_feather_m0_express",
     "configuration": "usbstack=arduino,debug=off",
     "port": "/dev/cu.usbmodem14101",
     "sketch": "fan-test.ino"

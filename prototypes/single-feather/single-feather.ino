@@ -4,6 +4,9 @@
 #include <Adafruit_VS1053.h>
 #include <SD.h>
 
+#define DEBUG false
+#define USING_MUSIC_MAKER true
+
 // ^ Music Maker settings
 #define VS1053_RESET -1 // VS1053 reset pin (not used!)
 
@@ -12,13 +15,13 @@
 #define VS1053_CS 6   // VS1053 chip select pin (output)
 #define CARDCS 5      // Card chip select pin
 
-#define VOLUME 5
+#define VOLUME 0
 
 Adafruit_VS1053_FilePlayer musicPlayer =
     Adafruit_VS1053_FilePlayer(VS1053_RESET, VS1053_CS, VS1053_DCS, VS1053_DREQ, CARDCS);
 
 // ^ RFID settings
-#define RST_PIN 15
+#define RST_PIN 18
 #define SS_PIN 19
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
@@ -31,7 +34,7 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(TOTAL_LEDS, LED_PIN, NEO_GRB + NEO_K
 #include "src/colors.h"
 
 // ^ Fan settings
-#define FAN 16
+#define FAN 17
 
 enum FAN_STATUSES
 {
@@ -52,31 +55,16 @@ void setup()
 {
     Serial.begin(115200);
 
-    while (!Serial)
-        ;
-
-    // ^ Music maker setup
-    if (!musicPlayer.begin())
+    if (DEBUG)
     {
-        Serial.println(F("Couldn't find VS1053, do you have the right pins defined?"));
-        while (1)
-            ;
-    }
-    Serial.println(F("VS1053 found"));
-
-    if (!SD.begin(CARDCS))
-    {
-        Serial.println(F("SD failed, or not present"));
-        while (1)
+        while (!Serial)
             ;
     }
 
-    // printDirectory(SD.open("/SOUNDS/"), 0);
-
-    // ^ Add settings for the music maker and test
-    musicPlayer.setVolume(VOLUME, VOLUME);
-    musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT); // DREQ int
-    // musicPlayer.playFullFile("SOUNDS/PARADO/HI-THERE.MP3");
+    if (USING_MUSIC_MAKER)
+    {
+        setupMusicMaker();
+    }
 
     // ^ LED Strip setup
     strip.begin();
@@ -86,7 +74,11 @@ void setup()
     SPI.begin();
     mfrc522.PCD_Init();
     mfrc522.PCD_DumpVersionToSerial();
-    Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));
+
+    if (DEBUG)
+    {
+        Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));
+    }
 
     // ^ Fan setup
     pinMode(FAN, OUTPUT);
@@ -108,15 +100,6 @@ uint8_t activePattern = LIGHT_PATTERN_BUBBLE;
 void loop()
 {
 
-    // ? Left in for testing out each color group
-    // fillStrip(BLUE_DARK);
-    // delay(1000);
-    // fillStrip(BLUE_MEDIUM);
-    // delay(1000);
-    // fillStrip(BLUE_LIGHT);
-    // delay(1000);
-    // return;
-
     // ^ Advance the state machines
     runActiveLightPattern();
 
@@ -131,9 +114,9 @@ void loop()
     {
         return;
     }
-    Serial.println("Tag found!");
 
     captureUID();
+    // return;
 
     // ^ If we're running effects we don't need to set anything
     // ! Note that nothing that needs to be run each loop pass (e.g. state machine driven
@@ -145,25 +128,41 @@ void loop()
 
     // ^ Prep a new run of the effects
     effectsActive = true;
-    musicPlayer.stopPlaying();
 
+    if (USING_MUSIC_MAKER)
+    {
+        musicPlayer.stopPlaying();
+    }
+
+    // TODO: Break each conditional out into it's own named function
     // ^ Run the specific set of effects based on the RFID tag we captured
     if (content == PIKACHU)
     {
         setFanStatus(FAN_ON);
-        musicPlayer.startPlayingFile("SOUNDS/EFFECTS/TREX.MP3");
+        if (USING_MUSIC_MAKER)
+        {
+            musicPlayer.startPlayingFile("SOUNDS/EFFECTS/TREX.MP3");
+        }
         setActiveLightPattern(LIGHT_PATTERN_MONSTER_ROAR);
     }
     else if (content == SQUIRTLE)
     {
         setFanStatus(FAN_ON);
-        musicPlayer.startPlayingFile("SOUNDS/EFFECTS/WITCH2.MP3");
+        if (USING_MUSIC_MAKER)
+        {
+            musicPlayer.startPlayingFile("SOUNDS/EFFECTS/WITCH2.MP3");
+        }
         setActiveLightPattern(LIGHT_PATTERN_WITCH_CACKLE);
     }
     else if (content == CUPCAKE)
     {
+        Serial.println("Got the cupcake!");
         setFanStatus(FAN_ON);
-        musicPlayer.startPlayingFile("SOUNDS/PARADO/PC-TY.MP3.MP3");
+        if (USING_MUSIC_MAKER)
+        {
+            musicPlayer.startPlayingFile("SOUNDS/EFFECTS/LAUGH3.MP3");
+            // musicPlayer.startPlayingFile("SOUNDS/PARADO/PC-TY.MP3");
+        }
         setActiveLightPattern(LIGHT_PATTERN_WITCH_CACKLE);
     }
     // | Verified Good
@@ -171,16 +170,49 @@ void loop()
     // musicPlayer.startPlayingFile("SOUNDS/EFFECTS/BUBBLE.MP3");
 }
 
+void setupMusicMaker()
+{
+    // ^ Music maker setup
+    if (!musicPlayer.begin())
+    {
+        Serial.println(F("Couldn't find VS1053, do you have the right pins defined?"));
+        while (1)
+            ;
+    }
+    Serial.println(F("VS1053 found"));
+
+    if (!SD.begin(CARDCS))
+    {
+        Serial.println(F("SD failed, or not present"));
+        while (1)
+            ;
+    }
+
+    printDirectory(SD.open("/SOUNDS/"), 0);
+
+    // ^ Add settings for the music maker and test
+    if (USING_MUSIC_MAKER)
+    {
+        musicPlayer.setVolume(VOLUME, VOLUME);
+        musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT); // DREQ int
+                                                             // musicPlayer.playFullFile("SOUNDS/PARADO/HI-THERE.MP3");
+    }
+}
+
 // TODO: RENAME
 // ! hmmm if we're going to deactivate the fan in here based on the music player status
 // ! we should really rename this function
 void runActiveLightPattern()
 {
-    if (musicPlayer.stopped())
+    if (USING_MUSIC_MAKER)
     {
-        setActiveLightPattern(LIGHT_PATTERN_BUBBLE);
-        setFanStatus(FAN_OFF);
-        effectsActive = false;
+
+        if (musicPlayer.stopped())
+        {
+            setActiveLightPattern(LIGHT_PATTERN_BUBBLE);
+            setFanStatus(FAN_OFF);
+            effectsActive = false;
+        }
     }
     // | Note! we're intentionally using if else if statements here instead of a switch for speed purposes.
     // | If we use switch, each case has to be evaluated even if the first one is the only one we're looking for,
@@ -347,7 +379,10 @@ void captureUID()
         content.concat(String(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " "));
         content.concat(String(mfrc522.uid.uidByte[i], HEX));
     }
-    Serial.println(content);
+    if (DEBUG)
+    {
+        Serial.println(content);
+    }
 }
 
 void printDirectory(File dir, int numTabs)
@@ -389,5 +424,10 @@ void setActiveLightPattern(int pattern)
 
 void setFanStatus(uint8_t fanStatus)
 {
+    if (DEBUG && fanStatus == 1)
+    {
+        Serial.print("Fan status: ");
+        Serial.println(fanStatus);
+    }
     digitalWrite(FAN, fanStatus);
 }

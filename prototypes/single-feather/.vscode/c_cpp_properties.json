@@ -3,6 +3,8 @@
         {
             "name": "Mac",
             "includePath": [
+                "/Users/cschmitz/Library/Arduino15/packages/esp32/tools/**",
+                "/Users/cschmitz/Library/Arduino15/packages/esp32/hardware/esp32/1.0.4/**",
                 "/Users/cschmitz/Library/Arduino15/packages/adafruit/tools/**",
                 "/Users/cschmitz/Library/Arduino15/packages/adafruit/hardware/samd/1.5.2/**",
                 "/Users/cschmitz/Documents/Arduino/libraries/**"

@@ -1,4 +1,4 @@
-#define FAN 3
+#define FAN 17
 
 void setup()
 {

@@ -1,6 +1,16 @@
 #ifndef COLORS_H
 #define COLORS_H
 
+// ? You can add this to the top of the loop in the main sketch to quickly check out
+// ? a color group.
+// fillStrip(BLUE_DARK);
+// delay(1000);
+// fillStrip(BLUE_MEDIUM);
+// delay(1000);
+// fillStrip(BLUE_LIGHT);
+// delay(1000);
+// return;
+
 uint32_t BLUE_LIGHT = strip.Color(26, 189, 239);
 uint32_t BLUE_MEDIUM = strip.Color(42, 112, 211);
 uint32_t BLUE_DARK = strip.Color(16, 15, 76);
