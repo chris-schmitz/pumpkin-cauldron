@@ -14,7 +14,7 @@
 #define VS1053_CS 6     // * VS1053 chip select pin (output)
 #define CARDCS 5        // * Card chip select pin
 
-#define VOLUME 20
+#define VOLUME 1
 
 Adafruit_VS1053_FilePlayer musicPlayer =
     Adafruit_VS1053_FilePlayer(VS1053_RESET, VS1053_CS, VS1053_DCS, VS1053_DREQ, CARDCS);
@@ -45,6 +45,10 @@ enum FAN_STATUSES
 String SQUIRTLE = " 04 59 d0 4a e6 4c 81";
 String PIKACHU = " 04 60 d1 4a e6 4c 81";
 String CUPCAKE = " 04 c8 cd 4a e6 4c 80";
+
+String SPOON = " 04 f1 cd 4a e6 4c 80";
+String LADLE = " 04 02 cd 4a e6 4c 81";
+String FORK = " 04 0a cd 4a e6 4c 81";
 
 String content;
 boolean ledsOn = true;
@@ -138,21 +142,20 @@ void loop()
 
     // TODO: Break each conditional out into it's own named function
     // ^ Run the specific set of effects based on the RFID tag we captured
-    if (content == PIKACHU)
+    if (content == LADLE)
     {
         setFanStatus(FAN_ON);
         musicPlayer.startPlayingFile("SOUNDS/EFFECTS/TREX.MP3");
         setActiveLightPattern(LIGHT_PATTERN_MONSTER_ROAR);
     }
-    else if (content == SQUIRTLE)
+    else if (content == FORK)
     {
         setFanStatus(FAN_ON);
         musicPlayer.startPlayingFile("SOUNDS/EFFECTS/WITCH2.MP3");
         setActiveLightPattern(LIGHT_PATTERN_WITCH_CACKLE);
     }
-    else if (content == CUPCAKE)
+    else if (content == SPOON)
     {
-        Serial.println("Got the cupcake!");
         setFanStatus(FAN_ON);
         musicPlayer.startPlayingFile("SOUNDS/EFFECTS/LAUGH3.MP3");
         // musicPlayer.startPlayingFile("SOUNDS/PARADO/PC-TY.MP3");
